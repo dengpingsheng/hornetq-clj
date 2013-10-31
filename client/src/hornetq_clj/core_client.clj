@@ -1,13 +1,11 @@
 (ns hornetq-clj.core-client
   "Hornetq core client api"
   (:import
-   (org.hornetq.api.core
-    HornetQException SimpleString TransportConfiguration)
-   (org.hornetq.api.core.client
+   [org.hornetq.api.core HornetQException SimpleString TransportConfiguration]
+   [org.hornetq.api.core.client
     ClientConsumer ClientMessage ClientProducer ClientSession
-    ClientSessionFactory HornetQClient MessageHandler ServerLocator)
-   org.hornetq.core.remoting.impl.invm.InVMConnectorFactory
-   org.hornetq.core.remoting.impl.netty.NettyConnectorFactory))
+    ClientSessionFactory HornetQClient MessageHandler ServerLocator]
+   [org.hornetq.core.remoting.impl.netty NettyConnectorFactory]))
 
 (defn- stringish?
   "Predicate for testing whether an argument is a string as recognised by
@@ -165,10 +163,6 @@
   (TransportConfiguration.
    (.getName NettyConnectorFactory) {"host" host "port" port}))
 
-(defmethod transport :in-vm
-  [{:as _}]
-  (TransportConfiguration. (.getName InVMConnectorFactory)))
-
 (defn ^ClientSessionFactory session-factory
   [^ServerLocator server-locator]
   (.createSessionFactory server-locator))
@@ -190,14 +184,6 @@
     (-> (HornetQClient/createServerLocatorWithoutHA
          (into-array TransportConfiguration [transport]))
          (doto (.setReconnectAttempts -1))
-        .createSessionFactory)))
-
-(defn in-vm-session-factory
-  "Create a session factory for an in VM server."
-  [_]
-  (let [transport (TransportConfiguration. (.getName InVMConnectorFactory))]
-    (-> (HornetQClient/createServerLocatorWithoutHA
-         (into-array TransportConfiguration [transport]))
         .createSessionFactory)))
 
 (defn session
@@ -226,9 +212,7 @@
    {:keys [address filter] :as options}]
   (try
     (create-temporary-queue session queue-name options)
-    (catch HornetQException e
-      (when-not (= (.getCode e) HornetQException/QUEUE_EXISTS)
-        (throw e)))))
+    (catch HornetQException e )))
 
 (defn create-queue
   [^ClientSession session ^String queue-name
@@ -245,9 +229,7 @@
    {:keys [address filter durable] :as options}]
   (try
     (create-queue session queue-name options)
-    (catch HornetQException e
-      (when-not (= (.getCode e) HornetQException/QUEUE_EXISTS)
-        (throw e)))))
+    (catch HornetQException e )))
 
 (defn query-queue
   "Query a queue"
@@ -272,7 +254,6 @@
 
 (defn ^ClientProducer create-producer
   "Create a message producer than can be used to send messages.
-
     - `address` specifies the default address (string)
     - `rate`    specifies the producer rate (integer)"
   ([^ClientSession session]
@@ -334,13 +315,13 @@
   "Write value to the message in a readable manner"
   [^ClientMessage message value]
   (binding [*print-readably* true]
-    (..  message getBodyBuffer (writeUTF (pr-str value))))
+    (..  message getBodyBuffer (writeString (pr-str value))))
   message)
 
 (defn ^ClientMessage write-message-string
   "Write s to the message"
   [^ClientMessage message s]
-  (..  message getBodyBuffer (writeUTF s))
+  (..  message getBodyBuffer (writeString s))
   message)
 
 (defn read-message
@@ -350,14 +331,14 @@
   ([^ClientMessage message eval]
      {:pre [message]}
      (binding [*read-eval* eval]
-       (let [msg (..  message getBodyBuffer readUTF)]
+       (let [msg (..  message getBodyBuffer readString)]
          (read-string msg)))))
 
 (defn read-message-string
   "Read a string from the message."
   [^ClientMessage message ]
   {:pre [message]}
-  (..  message getBodyBuffer readUTF))
+  (..  message getBodyBuffer readString))
 
 (defn receive-message
   "Send a message via a consumer"
@@ -401,3 +382,19 @@
     (f msg)))
 
 (defn message-handler [f] (Handler. f))
+
+(comment
+  (def s-f (netty-session-factory {:host "localhost" :port 5445}))
+  (def s (session s-f "guest" "guest" nil))
+  (ensure-queue s "greeting" nil)
+  (query-queue s "greeting")
+  (delete-queue s "greeting")
+  (ensure-queue s "greeting" nil)
+  (def c (create-consumer s "greeting" nil))
+  (def h (message-handler #(prn "recevied a msg : " (read-message %))))
+  (.setMessageHandler c h)
+  (def p (create-producer s "greeting"))
+  (def msg (create-message s false))
+  (write-message-string msg "hello!")
+  (send-message p msg "greeting")
+  (.start s))
