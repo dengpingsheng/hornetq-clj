@@ -1,6 +1,7 @@
 (ns hornetq-clj.simple
   (:require [hornetq-clj.core-client :as core]
-            [clojure.tools.logging :as log]))
+            [clojure.tools.logging :as log])
+  (:import  [org.hornetq.api.core.client ClientSession]))
 
 (def session (atom nil))
 
@@ -15,10 +16,16 @@
   (reset! session (core/session @session-factory user password nil))
   (.start @session))
 
+(defn queue-exists?
+  [^ClientSession s ^String queue-name]
+  (let [q (core/query-queue s queue-name)]
+    (and (not (nil? q)) (.isExists q))))
+
 (defn listen
   [queue-name handle-fn]
   {:pre [@session]}
-  (core/ensure-queue @session queue-name nil)
+  (when-not (queue-exists? @session queue-name)
+    (core/ensure-queue @session queue-name nil))
   (let [consumer (core/create-consumer @session queue-name nil)
         handler (core/message-handler (fn [hq-msg]
                                         (let [message (core/read-message-string hq-msg)]
@@ -29,7 +36,8 @@
 (def get-producer
   (memoize
    (fn [queue-name]
-     (core/ensure-queue @session queue-name nil)
+     (when-not (queue-exists? @session queue-name)
+       (core/ensure-queue @session queue-name nil))
      (core/create-producer @session queue-name))))
 
 (defn publish
