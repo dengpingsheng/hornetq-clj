@@ -183,8 +183,9 @@
                                            {"host" host "port" port})]
     (-> (HornetQClient/createServerLocatorWithoutHA
          (into-array TransportConfiguration [transport]))
-        (doto (.setReconnectAttempts -1))
-        (doto (.setConnectionTTL -1))
+        (doto
+            (.setReconnectAttempts -1)
+            (.setConnectionTTL -1))
         .createSessionFactory)))
 
 (defn session
