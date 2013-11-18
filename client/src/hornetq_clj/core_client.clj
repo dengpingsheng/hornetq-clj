@@ -288,6 +288,7 @@
                                (boolean browse-only))
    (and filter (not (nil? browse-only))) (.createConsumer
                                           session queue-name filter
+
                                           (boolean browse-only))
    (not (nil? browse-only)) (.createConsumer session queue-name
                                              (boolean browse-only))

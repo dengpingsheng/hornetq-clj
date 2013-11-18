@@ -1,17 +1,22 @@
 (ns hornetq-clj.simple
   (:require [hornetq-clj.core-client :as core]
             [clojure.tools.logging :as log])
-  (:import  [org.hornetq.api.core.client ClientSession]))
+  (:import  [org.hornetq.api.core.client ClientSession]
+            [java.util UUID]))
 
 (def session (atom nil))
 
 (def session-factory (atom nil))
 
+(def session-identifier (atom nil))
+
 (defn init
-  [{:keys [host port user password]
-    :or {:host "localhost" :port 5445 :user "guest" :password "guest"}
+  [{:keys [host port user password identifier]
+    :or {:host "localhost" :port 5445 :user "guest" :password "guest"
+         :identifier (str "." (UUID/randomUUID))}
     :as options}]
   (log/debug :simple-connect-options options)
+  (reset! session-identifier identifier)
   (reset! session-factory (core/netty-session-factory {:host host :port port}))
   (reset! session (core/session @session-factory user password nil))
   (.start @session))
@@ -21,12 +26,20 @@
   (let [q (core/query-queue s queue-name)]
     (and (not (nil? q)) (.isExists q))))
 
+(defn ensure-queue
+  [queue-name]
+  (when-not (queue-exists? @session (str queue-name @session-identifier))
+    (core/ensure-queue @session
+                       (str queue-name @session-identifier)
+                       {:address queue-name})))
+
 (defn listen
   [queue-name handle-fn]
   {:pre [@session]}
-  (when-not (queue-exists? @session queue-name)
-    (core/ensure-queue @session queue-name nil))
-  (let [consumer (core/create-consumer @session queue-name nil)
+  (ensure-queue queue-name)
+  (let [consumer (core/create-consumer @session
+                                       (str queue-name @session-identifier)
+                                       nil)
         handler (core/message-handler (fn [hq-msg]
                                         (let [message (core/read-message-string hq-msg)]
                                           (log/debug :queue-name queue-name :received-simple-message message)
@@ -36,8 +49,7 @@
 (def get-producer
   (memoize
    (fn [queue-name]
-     (when-not (queue-exists? @session queue-name)
-       (core/ensure-queue @session queue-name nil))
+     (ensure-queue queue-name)
      (core/create-producer @session queue-name))))
 
 (defn publish
