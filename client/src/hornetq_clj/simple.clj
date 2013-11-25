@@ -15,11 +15,24 @@
     :or {:host "localhost" :port 5445 :user "guest" :password "guest"
          :identifier (str "." (UUID/randomUUID))}
     :as options}]
-  (log/debug :simple-connect-options options)
+  (log/info "hq clj is starting , with options :" options)
   (reset! session-identifier identifier)
   (reset! session-factory (core/netty-session-factory {:host host :port port}))
   (reset! session (core/session @session-factory user password nil))
-  (.start @session))
+  (.start @session)
+  ;;使用hqclient clj的程序停止的时候必须相应停止hq,
+  ;;为免使用者没正确停止，将停止代码直接放在这里
+  (.addShutdownHook (Runtime/getRuntime) (Thread. stop)))
+
+(defn stop
+  []
+  (log/info "hq clj is stopped!")
+  (when @session
+    (.close @session)
+    (reset! session nil))
+  (when @session-factory
+    (.close @session-factory)
+    (reset! session-factory nil)))
 
 (defn queue-exists?
   [^ClientSession s ^String queue-name]
