@@ -10,6 +10,8 @@
 
 (def session-identifier (atom nil))
 
+(declare stop)
+
 (defn init
   [{:keys [host port user password identifier]
     :or {:host "localhost" :port 5445 :user "guest" :password "guest"
