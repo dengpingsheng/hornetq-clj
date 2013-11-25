@@ -56,7 +56,8 @@
                                        (str queue-name @session-identifier)
                                        nil)
         handler (core/message-handler (fn [hq-msg]
-                                        (let [message (core/read-message-string hq-msg)]
+                                        (let [_ (.acknowledge hq-msg)
+                                              message (core/read-message-string hq-msg)]
                                           (log/debug :queue-name queue-name :received-simple-message message)
                                           (handle-fn message))))]
     (.setMessageHandler consumer handler)))
